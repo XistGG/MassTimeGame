@@ -178,6 +178,7 @@ void AMTGPlayerController::IncreaseSimSpeed()
 	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
 	{
 		UE_LOG(LogMassTimeGame, Log, TEXT("Increasing Simulation Speed"));
+		// TODO once Play/Pause gets Epic approval
 	}
 }
 
@@ -186,5 +187,6 @@ void AMTGPlayerController::DecreaseSimSpeed()
 	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
 	{
 		UE_LOG(LogMassTimeGame, Log, TEXT("Decreasing Simulation Speed"));
+		// TODO once Play/Pause gets Epic approval
 	}
 }
