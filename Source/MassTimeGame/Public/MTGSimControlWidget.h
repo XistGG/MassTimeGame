@@ -21,10 +21,7 @@ protected:
 	void UpdateWidgetState(bool bIsPaused);
 
 	UFUNCTION()
-	void NativeOnSimulationPaused(UMassSimulationSubsystem* MassSimulationSubsystem);
-
-	UFUNCTION()
-	void NativeOnSimulationResumed(UMassSimulationSubsystem* MassSimulationSubsystem);
+	void NativeOnSimulationPauseStateChanged(UMassSimulationSubsystem* MassSimulationSubsystem);
 
 	UPROPERTY(meta=(BindWidget))
 	TObjectPtr<UButton> PauseButton;
