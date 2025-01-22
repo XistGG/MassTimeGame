@@ -10,6 +10,6 @@ public class MassTimeGame : ModuleRules
 
 		PublicIncludePathModuleNames.AddRange(new string[] { "MassTimeGame" });
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "NavigationSystem", "AIModule", "Niagara", "EnhancedInput" });
-        PrivateDependencyModuleNames.AddRange(new string[] { "MassSimulation", "UMG" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "MassSimulation", "UMG", "Slate" });
 	}
 }

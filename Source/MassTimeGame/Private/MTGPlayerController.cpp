@@ -18,6 +18,7 @@ AMTGPlayerController::AMTGPlayerController()
 	DefaultMouseCursor = EMouseCursor::Default;
 	CachedDestination = FVector::ZeroVector;
 	FollowTime = 0.f;
+	ShortPressThreshold = 0.2f;
 
 	// Set default sim control widget
 	static ConstructorHelpers::FClassFinder<UMTGSimControlWidget> SimTimeControlBPClass(TEXT("/Game/UI/W_SimTimeControl"));
@@ -25,6 +26,9 @@ AMTGPlayerController::AMTGPlayerController()
 	{
 		SimControlWidgetClass = SimTimeControlBPClass.Class;
 	}
+
+	// Override in BP if you want different options
+	SimSpeedOptions = {.125f, .25f, .5f, .75f, 1.f, 1.25f, 1.5f, 2.f, 4.f, 8.f};
 }
 
 void AMTGPlayerController::BeginPlay()
@@ -32,9 +36,31 @@ void AMTGPlayerController::BeginPlay()
 	// Call the base class  
 	Super::BeginPlay();
 
+	// By default, set the SimSpeedIndex to whatever index == 1.f
+	bool bFound {false};
+	for (int32 i = 0; i < SimSpeedOptions.Num(); i++)
+	{
+		if (SimSpeedOptions[i] == 1.f)
+		{
+			SimSpeedIndex = i;
+			bFound = true;
+			break;
+		}
+	}
+
+	// If there is no 1.f then just get the midpoint of the speed array
+	if (!bFound)
+	{
+		SimSpeedIndex = SimSpeedOptions.Num() / 2;  // int division implicitly floors the result
+	}
+
+	// Sanity checks
+	check(SimSpeedOptions.Num() > 0);  // must have at least 1 option
+	check(FMath::IsWithin(SimSpeedIndex, 0, SimSpeedOptions.Num()));  // valid SimSpeedIndex range
+
 	if (SimControlWidgetClass)
 	{
-		// Create the widget
+		// Create the widget AFTER initializing the sim speed settings
 		SimControlWidget = CreateWidget<UMTGSimControlWidget>(this, SimControlWidgetClass);
 		if (SimControlWidget)
 		{
@@ -42,6 +68,9 @@ void AMTGPlayerController::BeginPlay()
 			SimControlWidget->AddToViewport();
 		}
 	}
+
+	// Immediately focus the game viewport so key presses go to the game rather than to UEditor
+	FSlateApplication::Get().SetAllUserFocusToGameViewport();
 }
 
 void AMTGPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -175,18 +204,36 @@ void AMTGPlayerController::TogglePlayPause()
 
 void AMTGPlayerController::IncreaseSimSpeed()
 {
+	if (false == CanIncreaseSimSpeed())
+	{
+		// Cannot increase farther
+		return;
+	}
+
 	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
 	{
-		UE_LOG(LogMassTimeGame, Log, TEXT("Increasing Simulation Speed"));
-		// TODO once Play/Pause gets Epic approval
+		SimSpeedIndex++;
+		const float NewTimeDilationFactor = SimSpeedOptions[SimSpeedIndex];
+
+		UE_LOG(LogMassTimeGame, Log, TEXT("Increasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
+		MassSimulationSubsystem->SetTimeDilationFactor(NewTimeDilationFactor);
 	}
 }
 
 void AMTGPlayerController::DecreaseSimSpeed()
 {
+	if (false == CanDecreaseSimSpeed())
+	{
+		// Cannot decrease farther
+		return;
+	}
+
 	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
 	{
-		UE_LOG(LogMassTimeGame, Log, TEXT("Decreasing Simulation Speed"));
-		// TODO once Play/Pause gets Epic approval
+		SimSpeedIndex--;
+		const float NewTimeDilationFactor = SimSpeedOptions[SimSpeedIndex];
+
+		UE_LOG(LogMassTimeGame, Log, TEXT("Decreasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
+		MassSimulationSubsystem->SetTimeDilationFactor(NewTimeDilationFactor);
 	}
 }

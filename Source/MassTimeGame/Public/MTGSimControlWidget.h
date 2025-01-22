@@ -7,6 +7,7 @@
 
 class UButton;
 class UMassSimulationSubsystem;
+class UTextBlock;
 
 UCLASS()
 class MASSTIMEGAME_API UMTGSimControlWidget : public UUserWidget
@@ -18,15 +19,36 @@ protected:
 	virtual void NativeDestruct() override;
 
 	UFUNCTION(BlueprintCallable)
-	void UpdateWidgetState(bool bIsPaused);
+	void UpdateWidgetPauseState(bool bIsPaused);
+
+	UFUNCTION(BlueprintCallable)
+	void UpdateWidgetTimeDilationState(float TimeDilationFactor);
 
 	UFUNCTION()
 	void NativeOnSimulationPauseStateChanged(UMassSimulationSubsystem* MassSimulationSubsystem);
 
-	UPROPERTY(meta=(BindWidget))
+	UFUNCTION()
+	void NativeOnSimulationTimeDilationChanged(UMassSimulationSubsystem* MassSimulationSubsystem, float NewTimeDilation);
+
+	UPROPERTY(meta=(BindWidgetOptional))
 	TObjectPtr<UButton> PauseButton;
+
+	UPROPERTY(meta=(BindWidgetOptional))
+	TObjectPtr<UButton> SpeedDownButton;
+
+	UPROPERTY(meta=(BindWidgetOptional))
+	TObjectPtr<UButton> SpeedUpButton;
+
+	UPROPERTY(meta=(BindWidgetOptional))
+	TObjectPtr<UTextBlock> SpeedText;
 
 	UFUNCTION()
 	void NativeOnPauseButtonClicked();
+
+	UFUNCTION()
+	void NativeOnSpeedDownButtonClicked();
+
+	UFUNCTION()
+	void NativeOnSpeedUpButtonClicked();
 
 };
