@@ -17,6 +17,7 @@ void UMTGSimControlWidget::NativeConstruct()
 	// by default assume the simulation isn't paused or time dilated (e.g. in design time)
 	bool bIsPaused = false;
 	float TimeDilation = 1.f;
+	UMassSimulationSubsystem* MassSimulationSubsystem {nullptr};
 
 	if (!IsDesignTime())
 	{
@@ -41,7 +42,8 @@ void UMTGSimControlWidget::NativeConstruct()
 		UWorld* World = GetWorld();
 		check(World);
 
-		if (auto MassSimulationSubsystem = World->GetSubsystem<UMassSimulationSubsystem>())
+		MassSimulationSubsystem = World->GetSubsystem<UMassSimulationSubsystem>();
+		if (MassSimulationSubsystem)
 		{
 			bIsPaused = MassSimulationSubsystem->IsSimulationPaused();
 			TimeDilation = MassSimulationSubsystem->GetPendingTimeDilationFactor();
@@ -55,10 +57,15 @@ void UMTGSimControlWidget::NativeConstruct()
 		{
 			UE_LOG(LogMassTimeGame, Warning, TEXT("Cannot find MassSimulationSubsystem in World (%s)"), *World->GetName());
 		}
+
+		constexpr float bTimerRate = 0.1f;
+		constexpr bool bLoopTimer = true;
+		World->GetTimerManager().SetTimer(OUT TimerHandle, this, &ThisClass::NativeOnUpdateTimer, bTimerRate, bLoopTimer);
 	}
 
 	UpdateWidgetPauseState(bIsPaused);
 	UpdateWidgetTimeDilationState(TimeDilation);
+	UpdateWidgetTimerState(MassSimulationSubsystem);
 }
 
 void UMTGSimControlWidget::NativeDestruct()
@@ -90,6 +97,8 @@ void UMTGSimControlWidget::NativeDestruct()
 
 			MassSimulationSubsystem->GetOnTimeDilationChanged().RemoveAll(this);
 		}
+
+		World->GetTimerManager().ClearTimer(TimerHandle);
 	}
 
 	Super::NativeDestruct();
@@ -139,15 +148,59 @@ void UMTGSimControlWidget::UpdateWidgetTimeDilationState(float TimeDilationFacto
 	}
 }
 
+void UMTGSimControlWidget::UpdateWidgetTimerState(UMassSimulationSubsystem* MassSimulationSubsystem)
+{
+	const FMassProcessingPhaseManager* PhaseManager = MassSimulationSubsystem ? &MassSimulationSubsystem->GetPhaseManager() : nullptr;
+
+	if (TickNumberText)
+	{
+		FNumberFormattingOptions Options;
+		Options.UseGrouping = true;
+
+		const uint64 TickNumber = PhaseManager ? PhaseManager->GetTickNumber() : 0;
+		TickNumberText->SetText(FText::AsNumber(TickNumber, IN &Options));
+	}
+
+	if (ElapsedTimeText)
+	{
+		FNumberFormattingOptions Options;
+		Options.MinimumIntegralDigits = 1;
+		Options.MaximumFractionalDigits = 4;
+
+		const double SimTime = PhaseManager ? PhaseManager->GetSimulationTime() : 0;
+		ElapsedTimeText->SetText(FText::AsNumber(SimTime, IN &Options));
+	}
+
+	if (DeltaTimeText)
+	{
+		FNumberFormattingOptions Options;
+		Options.MinimumIntegralDigits = 1;
+		Options.MaximumFractionalDigits = 6;
+
+		const float DeltaTime = PhaseManager ? PhaseManager->GetDeltaTime() : 0;
+		DeltaTimeText->SetText(FText::AsNumber(DeltaTime, IN &Options));
+	}
+}
+
 void UMTGSimControlWidget::NativeOnSimulationPauseStateChanged(UMassSimulationSubsystem* MassSimulationSubsystem)
 {
 	const bool bIsPaused = MassSimulationSubsystem->IsSimulationPaused();
 	UpdateWidgetPauseState(bIsPaused);
+
+	UpdateWidgetTimerState(MassSimulationSubsystem);
 }
 
 void UMTGSimControlWidget::NativeOnSimulationTimeDilationChanged(UMassSimulationSubsystem* MassSimulationSubsystem, float NewTimeDilation)
 {
 	UpdateWidgetTimeDilationState(NewTimeDilation);
+}
+
+void UMTGSimControlWidget::NativeOnUpdateTimer()
+{
+	if (auto MassSimulationSubsystem = GetWorld()->GetSubsystem<UMassSimulationSubsystem>())
+	{
+		UpdateWidgetTimerState(MassSimulationSubsystem);
+	}
 }
 
 void UMTGSimControlWidget::NativeOnPauseButtonClicked()

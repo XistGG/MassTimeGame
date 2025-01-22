@@ -18,17 +18,20 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
-	UFUNCTION(BlueprintCallable)
 	void UpdateWidgetPauseState(bool bIsPaused);
 
-	UFUNCTION(BlueprintCallable)
 	void UpdateWidgetTimeDilationState(float TimeDilationFactor);
+
+	void UpdateWidgetTimerState(UMassSimulationSubsystem* MassSimulationSubsystem);
 
 	UFUNCTION()
 	void NativeOnSimulationPauseStateChanged(UMassSimulationSubsystem* MassSimulationSubsystem);
 
 	UFUNCTION()
 	void NativeOnSimulationTimeDilationChanged(UMassSimulationSubsystem* MassSimulationSubsystem, float NewTimeDilation);
+
+	UFUNCTION()
+	void NativeOnUpdateTimer();
 
 	UPROPERTY(meta=(BindWidgetOptional))
 	TObjectPtr<UButton> PauseButton;
@@ -42,6 +45,15 @@ protected:
 	UPROPERTY(meta=(BindWidgetOptional))
 	TObjectPtr<UTextBlock> SpeedText;
 
+	UPROPERTY(meta=(BindWidgetOptional))
+	TObjectPtr<UTextBlock> TickNumberText;
+
+	UPROPERTY(meta=(BindWidgetOptional))
+	TObjectPtr<UTextBlock> ElapsedTimeText;
+
+	UPROPERTY(meta=(BindWidgetOptional))
+	TObjectPtr<UTextBlock> DeltaTimeText;
+
 	UFUNCTION()
 	void NativeOnPauseButtonClicked();
 
@@ -50,5 +62,8 @@ protected:
 
 	UFUNCTION()
 	void NativeOnSpeedUpButtonClicked();
+
+private:
+	FTimerHandle TimerHandle;
 
 };
