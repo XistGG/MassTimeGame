@@ -10,6 +10,16 @@ which is based on Epic's `ue5-main` Github branch.
 I set the `EngineAssociation = ""` in the `.uproject` so you can clone this in the
 custom Engine source directory.
 
+## Sample PIE Session
+
+- **Ignore the art and animations**, this is a tech demo
+- Start PIE
+  - click `-` and `+` to change the sim time dilation
+  - click `SPACEBAR` to pause/resume
+- Game + Character + all other non-Mass actors are *unaffected* by Mass time dilation
+
+[![PIE Session](./Images/PIESession.gif)](./Images/PIESession.gif)
+
 ## Which branch is which?
 
 The `main` branch of this game is the latest.
