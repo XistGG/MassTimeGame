@@ -3,6 +3,9 @@
 The purpose of this project is to test time dilation, pausing and resuming
 of a UE Mass simulation.
 
+See PR#[12779](https://github.com/EpicGames/UnrealEngine/pull/12779)
+if you want to give feedback.
+
 For this project to compile and run, you need to be using Xist's custom UE5 engine
 (the [`xist-mass-time`](https://github.com/XistGG/UnrealEngine/tree/xist-mass-time) branch)
 which is based on Epic's `ue5-main` Github branch.
