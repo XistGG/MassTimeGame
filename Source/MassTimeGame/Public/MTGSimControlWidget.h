@@ -24,11 +24,7 @@ protected:
 
 	void UpdateWidgetTimerState(UMassSimulationSubsystem* MassSimulationSubsystem);
 
-	UFUNCTION()
-	void NativeOnSimulationPauseStateChanged(UMassSimulationSubsystem* MassSimulationSubsystem);
-
-	UFUNCTION()
-	void NativeOnSimulationTimeDilationChanged(UMassSimulationSubsystem* MassSimulationSubsystem, float NewTimeDilation);
+	void NativeOnSimulationPauseStateChanged(TNotNull<UMassSimulationSubsystem*> MassSimulationSubsystem);
 
 	UFUNCTION()
 	void NativeOnUpdateTimer();

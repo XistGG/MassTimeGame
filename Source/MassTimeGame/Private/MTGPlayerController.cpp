@@ -215,8 +215,8 @@ void AMTGPlayerController::IncreaseSimSpeed()
 		SimSpeedIndex++;
 		const float NewTimeDilationFactor = SimSpeedOptions[SimSpeedIndex];
 
-		UE_LOG(LogMassTimeGame, Log, TEXT("Increasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
-		MassSimulationSubsystem->SetTimeDilationFactor(NewTimeDilationFactor);
+		//UE_LOG(LogMassTimeGame, Log, TEXT("Increasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
+		// TODO
 	}
 }
 
@@ -233,7 +233,7 @@ void AMTGPlayerController::DecreaseSimSpeed()
 		SimSpeedIndex--;
 		const float NewTimeDilationFactor = SimSpeedOptions[SimSpeedIndex];
 
-		UE_LOG(LogMassTimeGame, Log, TEXT("Decreasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
-		MassSimulationSubsystem->SetTimeDilationFactor(NewTimeDilationFactor);
+		//UE_LOG(LogMassTimeGame, Log, TEXT("Decreasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
+		// TODO
 	}
 }
