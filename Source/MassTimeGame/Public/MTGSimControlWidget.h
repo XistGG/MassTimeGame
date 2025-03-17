@@ -28,6 +28,7 @@ protected:
 	void UpdateWidgetTimerState();
 
 	void NativeOnSimulationPauseStateChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystem);
+	void NativeOnSimulationTimeDilationChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystem);
 
 	UFUNCTION()
 	void NativeOnUpdateTimer();

@@ -13,8 +13,10 @@ class MASSTIMEGAME_API UMTGSimTimeSubsystem  : public UTickableWorldSubsystem
 	GENERATED_BODY()
 
 public:
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSimulationPauseEvent, TNotNull<UMTGSimTimeSubsystem*> /*this*/);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPauseStateChanged, TNotNull<UMTGSimTimeSubsystem*> /*this*/);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnTimeDilationChanged, TNotNull<UMTGSimTimeSubsystem*> /*this*/);
 
+	// Set Class Defaults
 	UMTGSimTimeSubsystem();
 
 	//~Begin UObject interface
@@ -31,14 +33,16 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	//~End UTickableWorldSubsystem interface
 
-	FOnSimulationPauseEvent& GetOnSimulationPaused() { return OnSimulationPaused; }
-	FOnSimulationPauseEvent& GetOnSimulationResumed() { return OnSimulationResumed; }
+	FOnPauseStateChanged& GetOnSimulationPaused() { return OnSimulationPaused; }
+	FOnPauseStateChanged& GetOnSimulationResumed() { return OnSimulationResumed; }
+	FOnTimeDilationChanged& GetOnTimeDilationChanged() { return OnTimeDilationChanged; }
 
 	bool IsPaused() const { return bIsSimPaused; }
-	double GetDeltaTime() const { return SimDeltaTime; }
-	uint64 GetTickNumber() const { return SimTickNumber; }
-	double GetTime() const { return SimTime; }
-	float GetTimeDilation() const { return SimTimeDilation; }
+
+	double GetSimDeltaTime() const { return SimDeltaTime; }
+	uint64 GetSimTickNumber() const { return SimTickNumber; }
+	double GetSimTimeElapsed() const { return SimTimeElapsed; }
+	float GetSimTimeDilation() const { return SimTimeDilation; }
 
 	bool CanIncreaseSimSpeed() const { return SimSpeedIndex < SimSpeedOptions.Num() - 1; }
 	bool CanDecreaseSimSpeed() const { return SimSpeedIndex > 0; }
@@ -49,11 +53,10 @@ public:
 	bool TogglePlayPause();
 
 protected:
-	UPROPERTY(VisibleInstanceOnly, Category="Xist")
-	int32 SimSpeedIndex {INDEX_NONE};
-
 	UPROPERTY(EditDefaultsOnly, Category="Xist", Config)
 	TArray<float> SimSpeedOptions;
+
+	int32 FindApproximateSimSpeedIndex();
 
 	void NativeOnSimulationPaused(TNotNull<UMassSimulationSubsystem*> MassSimulationSubsystem);
 	void NativeOnSimulationResumed(TNotNull<UMassSimulationSubsystem*> MassSimulationSubsystem);
@@ -62,9 +65,11 @@ private:
 	bool bIsSimPaused = false;
 	double SimDeltaTime = 0.;
 	uint64 SimTickNumber = 0;
-	double SimTime = 0.;
+	double SimTimeElapsed = 0.;
 	float SimTimeDilation = 1.;
+	int32 SimSpeedIndex = INDEX_NONE;
 
-	FOnSimulationPauseEvent OnSimulationPaused;
-	FOnSimulationPauseEvent OnSimulationResumed;
+	FOnPauseStateChanged OnSimulationPaused;
+	FOnPauseStateChanged OnSimulationResumed;
+	FOnTimeDilationChanged OnTimeDilationChanged;
 };

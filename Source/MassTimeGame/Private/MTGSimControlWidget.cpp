@@ -4,6 +4,7 @@
 
 #include "MassTimeGame.h"
 #include "MTGSimTimeSubsystem.h"
+#include "TimerManager.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 
@@ -51,10 +52,11 @@ void UMTGSimControlWidget::NativeConstruct()
 		if (ensureAlwaysMsgf(SimTimeSubsystem, TEXT("MTGSimTimeSubsystem is required")))
 		{
 			bIsPaused = SimTimeSubsystem->IsPaused();
-			TimeDilation = SimTimeSubsystem->GetTimeDilation();
+			TimeDilation = SimTimeSubsystem->GetSimTimeDilation();
 
 			SimTimeSubsystem->GetOnSimulationPaused().AddUObject(this, &ThisClass::NativeOnSimulationPauseStateChanged);
 			SimTimeSubsystem->GetOnSimulationResumed().AddUObject(this, &ThisClass::NativeOnSimulationPauseStateChanged);
+			SimTimeSubsystem->GetOnTimeDilationChanged().AddUObject(this, &UMTGSimControlWidget::NativeOnSimulationTimeDilationChanged);
 		}
 
 		constexpr bool bLoopTimer = true;
@@ -89,9 +91,11 @@ void UMTGSimControlWidget::NativeDestruct()
 		{
 			SimTimeSubsystem->GetOnSimulationPaused().RemoveAll(this);
 			SimTimeSubsystem->GetOnSimulationResumed().RemoveAll(this);
+			SimTimeSubsystem->GetOnTimeDilationChanged().RemoveAll(this);
+			SimTimeSubsystem = nullptr;
 		}
 
-		UWorld* World = GetWorld();
+		const UWorld* World = GetWorld();
 		check(World);
 
 		World->GetTimerManager().ClearTimer(TimerHandle);
@@ -149,9 +153,9 @@ void UMTGSimControlWidget::UpdateWidgetTimerState()
 
 	if (SimTimeSubsystem)
 	{
-		SimTickNumber = SimTimeSubsystem->GetTickNumber();
-		SimTime = SimTimeSubsystem->GetTime();
-		SimDeltaTime = SimTimeSubsystem->GetDeltaTime();
+		SimTickNumber = SimTimeSubsystem->GetSimTickNumber();
+		SimTime = SimTimeSubsystem->GetSimTimeElapsed();
+		SimDeltaTime = SimTimeSubsystem->GetSimDeltaTime();
 	}
 
 	if (TickNumberText)
@@ -181,11 +185,19 @@ void UMTGSimControlWidget::UpdateWidgetTimerState()
 	}
 }
 
-void UMTGSimControlWidget::NativeOnSimulationPauseStateChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystem)
+void UMTGSimControlWidget::NativeOnSimulationPauseStateChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystemIn)
 {
+	checkf(SimTimeSubsystem == SimTimeSubsystemIn, TEXT("We should never receive this event except from our expected SimTimeSubsystem"));
 	const bool bIsPaused = SimTimeSubsystem->IsPaused();
 	UpdateWidgetPauseState(bIsPaused);
 	UpdateWidgetTimerState();
+}
+
+void UMTGSimControlWidget::NativeOnSimulationTimeDilationChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystemIn)
+{
+	checkf(SimTimeSubsystem == SimTimeSubsystemIn, TEXT("We should never receive this event except from our expected SimTimeSubsystem"));
+	const float TimeDilation = SimTimeSubsystem->GetSimTimeDilation();
+	UpdateWidgetTimeDilationState(TimeDilation);
 }
 
 void UMTGSimControlWidget::NativeOnUpdateTimer()

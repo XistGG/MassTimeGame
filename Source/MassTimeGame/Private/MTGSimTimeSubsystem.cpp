@@ -4,6 +4,7 @@
 
 #include "MassSimulationSubsystem.h"
 #include "MassTimeGame.h"
+#include "GameFramework/WorldSettings.h"
 
 UMTGSimTimeSubsystem::UMTGSimTimeSubsystem()
 {
@@ -52,17 +53,8 @@ void UMTGSimTimeSubsystem::PostInitProperties()
 	// If we don't have a valid SimSpeedIndex value, compute a default.
 	if (!FMath::IsWithin(SimSpeedIndex, 0, SimSpeedOptions.Num()))
 	{
-		// By default, set the SimSpeedIndex to whatever index == SimTimeDilation,
-		// or the closest approximation thereof.
-		SimSpeedIndex = 0;
-		while (SimSpeedIndex < SimSpeedOptions.Num()
-			&& SimSpeedOptions[SimSpeedIndex] <= SimTimeDilation)
-		{
-			++SimSpeedIndex;
-		}
-
-		// Now explicitly adjust the TimeDilation based on the selected option
-		SimTimeDilation = SimSpeedOptions[SimSpeedIndex];
+		SimSpeedIndex = FindApproximateSimSpeedIndex();
+		SimTimeDilation = SimSpeedOptions[SimSpeedIndex];  // Startup: force time dilation to match the found index
 	}
 }
 
@@ -73,7 +65,7 @@ void UMTGSimTimeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	UWorld* World = GetWorld();
 	check(World);
 
-	// Sync the WorldSettings with our idea of the TimeDilation
+	// Startup: force the world to use the time dilation setting we want to start with
 	AWorldSettings* WorldSettings = World->GetWorldSettings();
 	if (ensure(WorldSettings))
 	{
@@ -123,7 +115,7 @@ void UMTGSimTimeSubsystem::Tick(float DeltaTime)
 	{
 		// While running, keep track of time
 		SimDeltaTime = DeltaTime;
-		SimTime += DeltaTime;
+		SimTimeElapsed += DeltaTime;
 		++SimTickNumber;
 	}
 
@@ -142,33 +134,34 @@ void UMTGSimTimeSubsystem::Tick(float DeltaTime)
 	const AWorldSettings* WorldSettings = World->GetWorldSettings();
 	check(WorldSettings);
 
-	if (SimTimeDilation != WorldSettings->TimeDilation)
+	if (UNLIKELY(SimTimeDilation != WorldSettings->TimeDilation))
 	{
 		const float OldTimeDilation = SimTimeDilation;
 		SimTimeDilation = WorldSettings->TimeDilation;
 
-		// Try to find what the new SimSpeedIndex is
-		SimSpeedIndex = 0;
-		while (SimSpeedIndex < SimSpeedOptions.Num()
-			&& SimSpeedOptions[SimSpeedIndex] <= SimTimeDilation)
-		{
-			++SimSpeedIndex;
-		}
+		SimSpeedIndex = FindApproximateSimSpeedIndex();
 
 		if (SimSpeedOptions[SimSpeedIndex] == SimTimeDilation)
 		{
+			// We found the appropriate SimSpeedIndex matching this dilation, so while this is unexpected,
+			// it's not necessarily super confusing for the user.
 			UE_LOG(LogMassTimeGame, Warning, TEXT("Something changed the world time dilation from %.6f to %.6f! Had to sync."), OldTimeDilation, SimTimeDilation);
 		}
 		else
 		{
+			// There is no corresponding SimSpeedIndex to match this time dilation.
+			// The controls will say one thing, but the game is doing something else.
+			// User confusion will ensue.
 			UE_LOG(LogMassTimeGame, Error, TEXT("Something changed the world time dilation from %.6f to %.6f! New value is not defined in SimTimeOptions, SimSpeedIndex is approximated to %d."), OldTimeDilation, SimTimeDilation, SimSpeedIndex);
 		}
+
+		OnTimeDilationChanged.Broadcast(this);
 	}
 }
 
 bool UMTGSimTimeSubsystem::IncreaseSimSpeed()
 {
-	UWorld* World = GetWorld();
+	const UWorld* World = GetWorld();
 	check(World);
 
 	UMassSimulationSubsystem* MassSimulationSubsystem = World->GetSubsystem<UMassSimulationSubsystem>();
@@ -187,13 +180,14 @@ bool UMTGSimTimeSubsystem::IncreaseSimSpeed()
 	UE_LOG(LogMassTimeGame, Log, TEXT("Increase Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), SimTimeDilation);
 
 	WorldSettings->SetTimeDilation(SimTimeDilation);
+	OnTimeDilationChanged.Broadcast(this);
 
 	return true;
 }
 
 bool UMTGSimTimeSubsystem::DecreaseSimSpeed()
 {
-	UWorld* World = GetWorld();
+	const UWorld* World = GetWorld();
 	check(World);
 
 	UMassSimulationSubsystem* MassSimulationSubsystem = World->GetSubsystem<UMassSimulationSubsystem>();
@@ -212,13 +206,17 @@ bool UMTGSimTimeSubsystem::DecreaseSimSpeed()
 	UE_LOG(LogMassTimeGame, Log, TEXT("Decrease Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), SimTimeDilation);
 
 	WorldSettings->SetTimeDilation(SimTimeDilation);
+	OnTimeDilationChanged.Broadcast(this);
 
 	return true;
 }
 
 bool UMTGSimTimeSubsystem::TogglePlayPause()
 {
-	UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld());
+	const UWorld* World = GetWorld();
+	check(World);
+
+	UMassSimulationSubsystem* MassSimulationSubsystem = World->GetSubsystem<UMassSimulationSubsystem>();
 
 	if (nullptr == MassSimulationSubsystem)
 	{
@@ -237,6 +235,22 @@ bool UMTGSimTimeSubsystem::TogglePlayPause()
 	}
 
 	return true;
+}
+
+int32 UMTGSimTimeSubsystem::FindApproximateSimSpeedIndex()
+{
+	// Get the closest approximation we can to the current SimTimeDilation value
+	// (which may not necessarily be one of the listed speed options)
+	// Find the greatest Index whose value is <= SimTimeDilation
+
+	int Index {0};
+	while (Index + 1 < SimSpeedOptions.Num()  // Stay in valid range
+		&& SimSpeedOptions[Index] < SimTimeDilation)  // Don't pass the current time dilation value
+	{
+		++Index;
+	}
+
+	return Index;
 }
 
 void UMTGSimTimeSubsystem::NativeOnSimulationPaused(TNotNull<UMassSimulationSubsystem*> MassSimulationSubsystem)
