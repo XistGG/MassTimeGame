@@ -2,16 +2,14 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Templates/SubclassOf.h"
 #include "GameFramework/PlayerController.h"
+#include "Templates/SubclassOf.h"
 #include "MTGPlayerController.generated.h"
 
-class UMTGSimControlWidget;
-/** Forward declaration to improve compiling times */
-class UNiagaraSystem;
-class UInputMappingContext;
 class UInputAction;
+class UInputMappingContext;
+class UMTGSimControlWidget;
+class UNiagaraSystem;
 
 UCLASS()
 class AMTGPlayerController : public APlayerController
@@ -44,11 +42,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
 	
-	/** Jump Input Action */
+	/** Set Destination Action (Mouse) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
 	TObjectPtr<UInputAction> SetDestinationClickAction;
 
-	/** Jump Input Action */
+	/** Set Destination Action (Touch) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
 	TObjectPtr<UInputAction> SetDestinationTouchAction;
 
@@ -60,9 +58,6 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
 	TObjectPtr<UInputAction> DecreaseSimSpeedAction;
-
-	/** True if the controlled character should navigate to the mouse cursor. */
-	uint32 bMoveToMouseCursor : 1;
 
 	virtual void SetupInputComponent() override;
 	
@@ -79,8 +74,6 @@ protected:
 private:
 	FVector CachedDestination;
 
-	bool bIsTouch; // Is it a touch device
+	bool bIsTouch = false; // Is it a touch device
 	float FollowTime; // For how long it has been pressed
 };
-
-
