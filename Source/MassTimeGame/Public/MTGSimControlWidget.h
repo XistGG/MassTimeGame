@@ -6,13 +6,16 @@
 #include "MTGSimControlWidget.generated.h"
 
 class UButton;
-class UMassSimulationSubsystem;
+class UMTGSimTimeSubsystem;
 class UTextBlock;
 
 UCLASS()
 class MASSTIMEGAME_API UMTGSimControlWidget : public UUserWidget
 {
 	GENERATED_BODY()
+
+	// Set Class Defaults
+	UMTGSimControlWidget(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 protected:
 	virtual void NativeConstruct() override;
@@ -22,12 +25,18 @@ protected:
 
 	void UpdateWidgetTimeDilationState(float TimeDilationFactor);
 
-	void UpdateWidgetTimerState(UMassSimulationSubsystem* MassSimulationSubsystem);
+	void UpdateWidgetTimerState();
 
-	void NativeOnSimulationPauseStateChanged(TNotNull<UMassSimulationSubsystem*> MassSimulationSubsystem);
+	void NativeOnSimulationPauseStateChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystem);
 
 	UFUNCTION()
 	void NativeOnUpdateTimer();
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category=MassTimeGame)
+	TObjectPtr<UMTGSimTimeSubsystem> SimTimeSubsystem;
+
+	UPROPERTY(EditAnywhere, Category=MassTimeGame)
+	float WidgetUpdateInterval;
 
 	UPROPERTY(meta=(BindWidgetOptional))
 	TObjectPtr<UButton> PauseButton;

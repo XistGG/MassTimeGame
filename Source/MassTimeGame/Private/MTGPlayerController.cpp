@@ -11,6 +11,7 @@
 #include "MassTimeGame.h"
 #include "Engine/LocalPlayer.h"
 #include "MTGSimControlWidget.h"
+#include "MTGSimTimeSubsystem.h"
 
 AMTGPlayerController::AMTGPlayerController()
 {
@@ -26,37 +27,12 @@ AMTGPlayerController::AMTGPlayerController()
 	{
 		SimControlWidgetClass = SimTimeControlBPClass.Class;
 	}
-
-	// Override in BP if you want different options
-	SimSpeedOptions = {.125f, .25f, .5f, .75f, 1.f, 1.25f, 1.5f, 2.f, 4.f, 8.f};
 }
 
 void AMTGPlayerController::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
-
-	// By default, set the SimSpeedIndex to whatever index == 1.f
-	bool bFound {false};
-	for (int32 i = 0; i < SimSpeedOptions.Num(); i++)
-	{
-		if (SimSpeedOptions[i] == 1.f)
-		{
-			SimSpeedIndex = i;
-			bFound = true;
-			break;
-		}
-	}
-
-	// If there is no 1.f then just get the midpoint of the speed array
-	if (!bFound)
-	{
-		SimSpeedIndex = SimSpeedOptions.Num() / 2;  // int division implicitly floors the result
-	}
-
-	// Sanity checks
-	check(SimSpeedOptions.Num() > 0);  // must have at least 1 option
-	check(FMath::IsWithin(SimSpeedIndex, 0, SimSpeedOptions.Num()));  // valid SimSpeedIndex range
 
 	if (SimControlWidgetClass)
 	{
@@ -111,9 +87,9 @@ void AMTGPlayerController::SetupInputComponent()
 		EnhancedInputComponent->BindAction(SetDestinationTouchAction, ETriggerEvent::Canceled, this, &AMTGPlayerController::OnTouchReleased);
 
 		// Mass Time inputs
-		EnhancedInputComponent->BindAction(TogglePlayPauseAction, ETriggerEvent::Completed, this, &AMTGPlayerController::TogglePlayPause);
-		EnhancedInputComponent->BindAction(IncreaseSimSpeedAction, ETriggerEvent::Completed, this, &AMTGPlayerController::IncreaseSimSpeed);
-		EnhancedInputComponent->BindAction(DecreaseSimSpeedAction, ETriggerEvent::Completed, this, &AMTGPlayerController::DecreaseSimSpeed);
+		EnhancedInputComponent->BindAction(TogglePlayPauseAction, ETriggerEvent::Completed, this, &AMTGPlayerController::Input_TogglePlayPause);
+		EnhancedInputComponent->BindAction(IncreaseSimSpeedAction, ETriggerEvent::Completed, this, &AMTGPlayerController::Input_IncreaseSimSpeed);
+		EnhancedInputComponent->BindAction(DecreaseSimSpeedAction, ETriggerEvent::Completed, this, &AMTGPlayerController::Input_DecreaseSimSpeed);
 	}
 	else
 	{
@@ -185,55 +161,38 @@ void AMTGPlayerController::OnTouchReleased()
 	OnSetDestinationReleased();
 }
 
-void AMTGPlayerController::TogglePlayPause()
+void AMTGPlayerController::Input_TogglePlayPause()
 {
-	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
+	const UWorld* World = GetWorld();
+	check(World);
+
+	UMTGSimTimeSubsystem* SimTimeSubsystem = World->GetSubsystem<UMTGSimTimeSubsystem>();
+	if (ensureMsgf(SimTimeSubsystem, TEXT("MTGSimTimeSubsystem is required")))
 	{
-		if (MassSimulationSubsystem->IsSimulationPaused())
-		{
-			UE_LOG(LogMassTimeGame, Log, TEXT("Resuming Simulation"));
-			MassSimulationSubsystem->ResumeSimulation();
-		}
-		else
-		{
-			UE_LOG(LogMassTimeGame, Log, TEXT("Pausing Simulation"));
-			MassSimulationSubsystem->PauseSimulation();
-		}
+		SimTimeSubsystem->TogglePlayPause();
 	}
 }
 
-void AMTGPlayerController::IncreaseSimSpeed()
+void AMTGPlayerController::Input_IncreaseSimSpeed()
 {
-	if (false == CanIncreaseSimSpeed())
-	{
-		// Cannot increase farther
-		return;
-	}
+	const UWorld* World = GetWorld();
+	check(World);
 
-	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
+	UMTGSimTimeSubsystem* SimTimeSubsystem = World->GetSubsystem<UMTGSimTimeSubsystem>();
+	if (ensureMsgf(SimTimeSubsystem, TEXT("MTGSimTimeSubsystem is required")))
 	{
-		SimSpeedIndex++;
-		const float NewTimeDilationFactor = SimSpeedOptions[SimSpeedIndex];
-
-		//UE_LOG(LogMassTimeGame, Log, TEXT("Increasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
-		// TODO
+		SimTimeSubsystem->IncreaseSimSpeed();
 	}
 }
 
-void AMTGPlayerController::DecreaseSimSpeed()
+void AMTGPlayerController::Input_DecreaseSimSpeed()
 {
-	if (false == CanDecreaseSimSpeed())
-	{
-		// Cannot decrease farther
-		return;
-	}
+	const UWorld* World = GetWorld();
+	check(World);
 
-	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
+	UMTGSimTimeSubsystem* SimTimeSubsystem = World->GetSubsystem<UMTGSimTimeSubsystem>();
+	if (ensureMsgf(SimTimeSubsystem, TEXT("MTGSimTimeSubsystem is required")))
 	{
-		SimSpeedIndex--;
-		const float NewTimeDilationFactor = SimSpeedOptions[SimSpeedIndex];
-
-		//UE_LOG(LogMassTimeGame, Log, TEXT("Decreasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
-		// TODO
+		SimTimeSubsystem->DecreaseSimSpeed();
 	}
 }

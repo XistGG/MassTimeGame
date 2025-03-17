@@ -2,13 +2,19 @@
 
 #include "MTGSimControlWidget.h"
 
-#include "MassSimulationSubsystem.h"
 #include "MassTimeGame.h"
-#include "MTGPlayerController.h"
+#include "MTGSimTimeSubsystem.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 
 #define LOCTEXT_NAMESPACE "MassTimeGame"
+
+// Set Class Defaults
+UMTGSimControlWidget::UMTGSimControlWidget(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	WidgetUpdateInterval = 0.05f;
+}
 
 void UMTGSimControlWidget::NativeConstruct()
 {
@@ -17,7 +23,6 @@ void UMTGSimControlWidget::NativeConstruct()
 	// by default assume the simulation isn't paused or time dilated (e.g. in design time)
 	bool bIsPaused = false;
 	float TimeDilation = 1.f;
-	UMassSimulationSubsystem* MassSimulationSubsystem {nullptr};
 
 	if (!IsDesignTime())
 	{
@@ -42,27 +47,23 @@ void UMTGSimControlWidget::NativeConstruct()
 		UWorld* World = GetWorld();
 		check(World);
 
-		MassSimulationSubsystem = World->GetSubsystem<UMassSimulationSubsystem>();
-		if (MassSimulationSubsystem)
+		SimTimeSubsystem = World->GetSubsystem<UMTGSimTimeSubsystem>();
+		if (ensureAlwaysMsgf(SimTimeSubsystem, TEXT("MTGSimTimeSubsystem is required")))
 		{
-			bIsPaused = MassSimulationSubsystem->IsSimulationPaused();
+			bIsPaused = SimTimeSubsystem->IsPaused();
+			TimeDilation = SimTimeSubsystem->GetTimeDilation();
 
-			MassSimulationSubsystem->GetOnSimulationPaused().AddUObject(this, &ThisClass::NativeOnSimulationPauseStateChanged);
-			MassSimulationSubsystem->GetOnSimulationResumed().AddUObject(this, &ThisClass::NativeOnSimulationPauseStateChanged);
-		}
-		else
-		{
-			UE_LOG(LogMassTimeGame, Warning, TEXT("Cannot find MassSimulationSubsystem in World (%s)"), *World->GetName());
+			SimTimeSubsystem->GetOnSimulationPaused().AddUObject(this, &ThisClass::NativeOnSimulationPauseStateChanged);
+			SimTimeSubsystem->GetOnSimulationResumed().AddUObject(this, &ThisClass::NativeOnSimulationPauseStateChanged);
 		}
 
-		constexpr float bTimerRate = 0.1f;
 		constexpr bool bLoopTimer = true;
-		World->GetTimerManager().SetTimer(OUT TimerHandle, this, &ThisClass::NativeOnUpdateTimer, bTimerRate, bLoopTimer);
+		World->GetTimerManager().SetTimer(OUT TimerHandle, this, &ThisClass::NativeOnUpdateTimer, WidgetUpdateInterval, bLoopTimer);
 	}
 
 	UpdateWidgetPauseState(bIsPaused);
 	UpdateWidgetTimeDilationState(TimeDilation);
-	UpdateWidgetTimerState(MassSimulationSubsystem);
+	UpdateWidgetTimerState();
 }
 
 void UMTGSimControlWidget::NativeDestruct()
@@ -84,14 +85,14 @@ void UMTGSimControlWidget::NativeDestruct()
 			SpeedUpButton->OnClicked.RemoveAll(this);
 		}
 
+		if (SimTimeSubsystem)
+		{
+			SimTimeSubsystem->GetOnSimulationPaused().RemoveAll(this);
+			SimTimeSubsystem->GetOnSimulationResumed().RemoveAll(this);
+		}
+
 		UWorld* World = GetWorld();
 		check(World);
-
-		if (auto MassSimulationSubsystem = World->GetSubsystem<UMassSimulationSubsystem>())
-		{
-			MassSimulationSubsystem->GetOnSimulationPaused().RemoveAll(this);
-			MassSimulationSubsystem->GetOnSimulationResumed().RemoveAll(this);
-		}
 
 		World->GetTimerManager().ClearTimer(TimerHandle);
 	}
@@ -120,9 +121,6 @@ void UMTGSimControlWidget::UpdateWidgetPauseState(bool bIsPaused)
 
 void UMTGSimControlWidget::UpdateWidgetTimeDilationState(float TimeDilationFactor)
 {
-	AMTGPlayerController* PC = GetOwningPlayer<AMTGPlayerController>();
-	check(PC);
-
 	if (SpeedText)
 	{
 		FNumberFormattingOptions Options;
@@ -134,26 +132,34 @@ void UMTGSimControlWidget::UpdateWidgetTimeDilationState(float TimeDilationFacto
 
 	if (SpeedDownButton)
 	{
-		SpeedDownButton->SetIsEnabled(PC->CanDecreaseSimSpeed());
+		SpeedDownButton->SetIsEnabled(SimTimeSubsystem && SimTimeSubsystem->CanDecreaseSimSpeed());
 	}
 
 	if (SpeedUpButton)
 	{
-		SpeedUpButton->SetIsEnabled(PC->CanIncreaseSimSpeed());
+		SpeedUpButton->SetIsEnabled(SimTimeSubsystem && SimTimeSubsystem->CanIncreaseSimSpeed());
 	}
 }
 
-void UMTGSimControlWidget::UpdateWidgetTimerState(UMassSimulationSubsystem* MassSimulationSubsystem)
+void UMTGSimControlWidget::UpdateWidgetTimerState()
 {
-	const FMassProcessingPhaseManager* PhaseManager = MassSimulationSubsystem ? &MassSimulationSubsystem->GetPhaseManager() : nullptr;
+	uint64 SimTickNumber {0};
+	double SimTime {0.};
+	float SimDeltaTime {0.};
+
+	if (SimTimeSubsystem)
+	{
+		SimTickNumber = SimTimeSubsystem->GetTickNumber();
+		SimTime = SimTimeSubsystem->GetTime();
+		SimDeltaTime = SimTimeSubsystem->GetDeltaTime();
+	}
 
 	if (TickNumberText)
 	{
 		FNumberFormattingOptions Options;
 		Options.UseGrouping = true;
 
-		const uint64 TickNumber = 0; // PhaseManager ? PhaseManager->GetTickNumber() : 0;  // TODO redo
-		TickNumberText->SetText(FText::AsNumber(TickNumber, IN &Options));
+		TickNumberText->SetText(FText::AsNumber(SimTickNumber, IN &Options));
 	}
 
 	if (ElapsedTimeText)
@@ -162,7 +168,6 @@ void UMTGSimControlWidget::UpdateWidgetTimerState(UMassSimulationSubsystem* Mass
 		Options.MinimumIntegralDigits = 1;
 		Options.MaximumFractionalDigits = 4;
 
-		const double SimTime = 0; // PhaseManager ? PhaseManager->GetSimulationTime() : 0;  // TODO redo
 		ElapsedTimeText->SetText(FText::AsNumber(SimTime, IN &Options));
 	}
 
@@ -172,49 +177,44 @@ void UMTGSimControlWidget::UpdateWidgetTimerState(UMassSimulationSubsystem* Mass
 		Options.MinimumIntegralDigits = 1;
 		Options.MaximumFractionalDigits = 6;
 
-		const float DeltaTime = 0; // PhaseManager ? PhaseManager->GetDeltaTime() : 0;  // TODO redo
-		DeltaTimeText->SetText(FText::AsNumber(DeltaTime, IN &Options));
+		DeltaTimeText->SetText(FText::AsNumber(SimDeltaTime, IN &Options));
 	}
 }
 
-void UMTGSimControlWidget::NativeOnSimulationPauseStateChanged(TNotNull<UMassSimulationSubsystem*> MassSimulationSubsystem)
+void UMTGSimControlWidget::NativeOnSimulationPauseStateChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystem)
 {
-	const bool bIsPaused = MassSimulationSubsystem->IsSimulationPaused();
+	const bool bIsPaused = SimTimeSubsystem->IsPaused();
 	UpdateWidgetPauseState(bIsPaused);
-
-	UpdateWidgetTimerState(MassSimulationSubsystem);
+	UpdateWidgetTimerState();
 }
 
 void UMTGSimControlWidget::NativeOnUpdateTimer()
 {
-	if (auto MassSimulationSubsystem = GetWorld()->GetSubsystem<UMassSimulationSubsystem>())
-	{
-		UpdateWidgetTimerState(MassSimulationSubsystem);
-	}
+	UpdateWidgetTimerState();
 }
 
 void UMTGSimControlWidget::NativeOnPauseButtonClicked()
 {
-	AMTGPlayerController* PC = GetOwningPlayer<AMTGPlayerController>();
-	check(PC);
-
-	PC->TogglePlayPause();
+	if (SimTimeSubsystem)
+	{
+		SimTimeSubsystem->TogglePlayPause();
+	}
 }
 
 void UMTGSimControlWidget::NativeOnSpeedDownButtonClicked()
 {
-	AMTGPlayerController* PC = GetOwningPlayer<AMTGPlayerController>();
-	check(PC);
-
-	PC->DecreaseSimSpeed();
+	if (SimTimeSubsystem)
+	{
+		SimTimeSubsystem->DecreaseSimSpeed();
+	}
 }
 
 void UMTGSimControlWidget::NativeOnSpeedUpButtonClicked()
 {
-	AMTGPlayerController* PC = GetOwningPlayer<AMTGPlayerController>();
-	check(PC);
-
-	PC->IncreaseSimSpeed();
+	if (SimTimeSubsystem)
+	{
+		SimTimeSubsystem->IncreaseSimSpeed();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

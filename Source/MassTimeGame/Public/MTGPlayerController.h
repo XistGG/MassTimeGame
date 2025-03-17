@@ -21,13 +21,10 @@ class AMTGPlayerController : public APlayerController
 public:
 	AMTGPlayerController();
 
-	void TogglePlayPause();
+	void Input_TogglePlayPause();
 
-	bool CanIncreaseSimSpeed() const { return SimSpeedIndex < SimSpeedOptions.Num() - 1; }
-	bool CanDecreaseSimSpeed() const { return SimSpeedIndex > 0; }
-
-	void IncreaseSimSpeed();
-	void DecreaseSimSpeed();
+	void Input_IncreaseSimSpeed();
+	void Input_DecreaseSimSpeed();
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = UI)
@@ -78,12 +75,6 @@ protected:
 	void OnSetDestinationReleased();
 	void OnTouchTriggered();
 	void OnTouchReleased();
-
-	UPROPERTY(EditDefaultsOnly, Category="Xist")
-	TArray<float> SimSpeedOptions;
-
-	UPROPERTY(VisibleInstanceOnly, Category="Xist")
-	int32 SimSpeedIndex {INDEX_NONE};
 
 private:
 	FVector CachedDestination;
