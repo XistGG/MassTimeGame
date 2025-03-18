@@ -183,7 +183,7 @@ bool UMTGSimTimeSubsystem::IncreaseSimSpeed()
 	++SimSpeedIndex;
 	SimTimeDilation = SimSpeedOptions[SimSpeedIndex];
 
-	UE_LOG(LogMassTimeGame, Log, TEXT("Increase Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), SimTimeDilation);
+	UE_LOG(LogMassTimeGame, Verbose, TEXT("Increase Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), SimTimeDilation);
 
 	WorldSettings->SetTimeDilation(SimTimeDilation);
 	OnTimeDilationChanged.Broadcast(this);
@@ -209,7 +209,7 @@ bool UMTGSimTimeSubsystem::DecreaseSimSpeed()
 	--SimSpeedIndex;
 	SimTimeDilation = SimSpeedOptions[SimSpeedIndex];
 
-	UE_LOG(LogMassTimeGame, Log, TEXT("Decrease Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), SimTimeDilation);
+	UE_LOG(LogMassTimeGame, Verbose, TEXT("Decrease Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), SimTimeDilation);
 
 	WorldSettings->SetTimeDilation(SimTimeDilation);
 	OnTimeDilationChanged.Broadcast(this);
@@ -231,15 +231,22 @@ bool UMTGSimTimeSubsystem::TogglePlayPause()
 
 	if (IsPaused())
 	{
-		UE_LOG(LogMassTimeGame, Log, TEXT("Resume Simulation"));
+		// We need UMassSimulationSubsystem to actually pause the simulation.
+		// Also, this WILL NOT take effect immediately, so we DO NOT immediately mark the sim as paused.
+		// We'll wait for its callback to do that.
+		UE_LOG(LogMassTimeGame, Verbose, TEXT("Resume Simulation"));
 		MassSimulationSubsystem->ResumeSimulation();
 	}
 	else
 	{
-		UE_LOG(LogMassTimeGame, Log, TEXT("Pause Simulation"));
+		// We need UMassSimulationSubsystem to actually resume the simulation.
+		// Also, this WILL NOT take effect immediately, so we DO NOT immediately mark the sim as resumed.
+		// We'll wait for its callback to do that.
+		UE_LOG(LogMassTimeGame, Verbose, TEXT("Pause Simulation"));
 		MassSimulationSubsystem->PauseSimulation();
 	}
 
+	// We requested the pause state to change, now we just need to wait for it to actually change.
 	return true;
 }
 
@@ -261,12 +268,14 @@ int32 UMTGSimTimeSubsystem::FindApproximateSimSpeedIndex()
 
 void UMTGSimTimeSubsystem::NativeOnSimulationPaused(TNotNull<UMassSimulationSubsystem*> MassSimulationSubsystem)
 {
+	// UMassSimulationSubsystem notified us the sim is now paused
 	bIsSimPaused = true;
-	OnSimulationPaused.Broadcast(this);
+	OnSimulationPaused.Broadcast(this);  // Relay this event
 }
 
 void UMTGSimTimeSubsystem::NativeOnSimulationResumed(TNotNull<UMassSimulationSubsystem*> MassSimulationSubsystem)
 {
+	// UMassSimulationSubsystem notified us the sim is now resumed
 	bIsSimPaused = false;
-	OnSimulationResumed.Broadcast(this);
+	OnSimulationResumed.Broadcast(this);  // Relay this event
 }
