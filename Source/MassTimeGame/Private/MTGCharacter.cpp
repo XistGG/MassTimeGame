@@ -1,15 +1,18 @@
 // Copyright (c) 2025 Xist.GG
 
 #include "MTGCharacter.h"
-#include "UObject/ConstructorHelpers.h"
+
+#include "MTGSimTimeSubsystem.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Materials/Material.h"
-#include "Engine/World.h"
+#include "UObject/ConstructorHelpers.h"
 
+// Set Class Defaults
 AMTGCharacter::AMTGCharacter()
 {
 	// Set size for player capsule
@@ -30,7 +33,7 @@ AMTGCharacter::AMTGCharacter()
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->SetUsingAbsoluteRotation(true); // Don't want arm to rotate when character does
-	CameraBoom->TargetArmLength = 5000.f;
+	CameraBoom->TargetArmLength = 3000.f;
 	CameraBoom->SetRelativeRotation(FRotator(-80.f, 0.f, 0.f));
 	CameraBoom->bDoCollisionTest = false; // Don't want to pull camera in when it collides with level
 
@@ -39,12 +42,44 @@ AMTGCharacter::AMTGCharacter()
 	TopDownCameraComponent->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	TopDownCameraComponent->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
-	// Activate ticking in order to update the cursor every frame.
-	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.bStartWithTickEnabled = true;
+	// This character doesn't need to tick
+	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 }
 
-void AMTGCharacter::Tick(float DeltaSeconds)
+void AMTGCharacter::BeginPlay()
 {
-    Super::Tick(DeltaSeconds);
+	Super::BeginPlay();
+
+	const UWorld* World = GetWorld();
+	check(World);
+
+	if (UMTGSimTimeSubsystem* SimTimeSubsystem = World->GetSubsystem<UMTGSimTimeSubsystem>())
+	{
+		CustomTimeDilation = SimTimeSubsystem->GetRealTimeDilation();
+
+		// Register for OnTimeDilationChanged events
+		SimTimeSubsystem->GetOnTimeDilationChanged().AddUObject(this, &ThisClass::NativeOnSimTimeDilationChanged);
+	}
+}
+
+void AMTGCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (const UWorld* World = GetWorld())
+	{
+		if (UMTGSimTimeSubsystem* SimTimeSubsystem = World->GetSubsystem<UMTGSimTimeSubsystem>())
+		{
+			// Unregister for OnTimeDilationChanged events
+			SimTimeSubsystem->GetOnTimeDilationChanged().RemoveAll(this);
+		}
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+void AMTGCharacter::NativeOnSimTimeDilationChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystem)
+{
+	// Sim changed the global time dilation.
+	// Adjust this actor's custom time dilation so it runs at real time.
+	CustomTimeDilation = SimTimeSubsystem->GetRealTimeDilation();
 }

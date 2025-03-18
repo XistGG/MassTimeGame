@@ -1,19 +1,31 @@
 // Copyright (c) 2025 Xist.GG
 
 #include "MTGPlayerController.h"
-#include "GameFramework/Pawn.h"
-#include "Blueprint/AIBlueprintHelperLibrary.h"
-#include "NiagaraFunctionLibrary.h"
-#include "Engine/World.h"
+
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
-#include "MassSimulationSubsystem.h"
 #include "MassTimeGame.h"
-#include "Engine/LocalPlayer.h"
 #include "MTGSimControlWidget.h"
+#include "MTGSimTimeSubsystem.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystemInstanceController.h"
+#include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
+#include "Framework/Application/SlateApplication.h"
+#include "GameFramework/Pawn.h"
+#include "UObject/ConstructorHelpers.h"
 
+// Set this to true if you want to see some expanded debug logs to help visualize Niagara Component lifetimes
+#define DEBUG_MTG_NIAGARA_SYSTEMS (false && (UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT))
+
+// Set Class Defaults
 AMTGPlayerController::AMTGPlayerController()
 {
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
+
 	bShowMouseCursor = true;
 	DefaultMouseCursor = EMouseCursor::Default;
 	CachedDestination = FVector::ZeroVector;
@@ -26,9 +38,6 @@ AMTGPlayerController::AMTGPlayerController()
 	{
 		SimControlWidgetClass = SimTimeControlBPClass.Class;
 	}
-
-	// Override in BP if you want different options
-	SimSpeedOptions = {.125f, .25f, .5f, .75f, 1.f, 1.25f, 1.5f, 2.f, 4.f, 8.f};
 }
 
 void AMTGPlayerController::BeginPlay()
@@ -36,27 +45,11 @@ void AMTGPlayerController::BeginPlay()
 	// Call the base class  
 	Super::BeginPlay();
 
-	// By default, set the SimSpeedIndex to whatever index == 1.f
-	bool bFound {false};
-	for (int32 i = 0; i < SimSpeedOptions.Num(); i++)
-	{
-		if (SimSpeedOptions[i] == 1.f)
-		{
-			SimSpeedIndex = i;
-			bFound = true;
-			break;
-		}
-	}
+	const UWorld* World = GetWorld();
+	check(World);
 
-	// If there is no 1.f then just get the midpoint of the speed array
-	if (!bFound)
-	{
-		SimSpeedIndex = SimSpeedOptions.Num() / 2;  // int division implicitly floors the result
-	}
-
-	// Sanity checks
-	check(SimSpeedOptions.Num() > 0);  // must have at least 1 option
-	check(FMath::IsWithin(SimSpeedIndex, 0, SimSpeedOptions.Num()));  // valid SimSpeedIndex range
+	SimTimeSubsystem = World->GetSubsystem<UMTGSimTimeSubsystem>();
+	checkf(SimTimeSubsystem, TEXT("MTGSimTimeSubsystem is required"));
 
 	if (SimControlWidgetClass)
 	{
@@ -81,7 +74,62 @@ void AMTGPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		SimControlWidget = nullptr;
 	}
 
+	SimTimeSubsystem = nullptr;
+
 	Super::EndPlay(EndPlayReason);
+}
+
+void AMTGPlayerController::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// Since we're dilating global time, Niagara particles will dilate as well.
+	// In the case of the Cursor FX system, we don't want that.
+	//
+	// Here we will manually tick any Cursor FX particle systems for as long
+	// as they live (~0.7s) with the REAL TIME elapsed in the tick, NOT with
+	// the dilated game time.
+
+	if (0 < SpawnedFXComponents.Num())
+	{
+		// Convert the game dilated time to real time
+		const float RealDeltaSeconds = SimTimeSubsystem->GetRealTimeSeconds(DeltaSeconds);
+
+		for (auto It = SpawnedFXComponents.CreateIterator(); It; ++It)
+		{
+			if (UNiagaraComponent* NiagaraComponent = It->Get();
+				LIKELY(NiagaraComponent))  // True ~ 41/42 times (0.7s @ 60 fps)
+			{
+				// The component itself is still valid, try to get the Niagara system instance
+				if (FNiagaraSystemInstanceControllerPtr NiagaraController = NiagaraComponent->GetSystemInstanceController();
+					LIKELY(NiagaraController))  // True ~ 99.99%
+				{
+					if (FNiagaraSystemInstance* NiagaraInstance = NiagaraController->GetSoloSystemInstance();
+						LIKELY(NiagaraInstance))  // True ~ 99.99%
+					{
+						NiagaraInstance->SetPaused(false);  // Unpause so we can Advance
+						NiagaraInstance->AdvanceSimulation(1, RealDeltaSeconds);
+						NiagaraInstance->SetPaused(true);  // Pause so it doesn't tick on its own
+						continue;  // DO NOT REMOVE, we're still ticking
+					}
+				}
+			}
+
+			// If we've gotten this far, this niagara component is no longer valid; remove it
+			It.RemoveCurrent();
+
+#if DEBUG_MTG_NIAGARA_SYSTEMS
+			UE_LOG(LogMassTimeGame, Log, TEXT("Removed expired FXCursor Niagara System Component"));
+#endif
+		}
+
+#if DEBUG_MTG_NIAGARA_SYSTEMS
+		if (0 == SpawnedFXComponents.Num())
+		{
+			UE_LOG(LogMassTimeGame, Log, TEXT("FXCursor Niagara System Component Set is now empty"));
+		}
+#endif
+	}
 }
 
 void AMTGPlayerController::SetupInputComponent()
@@ -111,9 +159,9 @@ void AMTGPlayerController::SetupInputComponent()
 		EnhancedInputComponent->BindAction(SetDestinationTouchAction, ETriggerEvent::Canceled, this, &AMTGPlayerController::OnTouchReleased);
 
 		// Mass Time inputs
-		EnhancedInputComponent->BindAction(TogglePlayPauseAction, ETriggerEvent::Completed, this, &AMTGPlayerController::TogglePlayPause);
-		EnhancedInputComponent->BindAction(IncreaseSimSpeedAction, ETriggerEvent::Completed, this, &AMTGPlayerController::IncreaseSimSpeed);
-		EnhancedInputComponent->BindAction(DecreaseSimSpeedAction, ETriggerEvent::Completed, this, &AMTGPlayerController::DecreaseSimSpeed);
+		EnhancedInputComponent->BindAction(TogglePlayPauseAction, ETriggerEvent::Completed, this, &AMTGPlayerController::Input_TogglePlayPause);
+		EnhancedInputComponent->BindAction(IncreaseSimSpeedAction, ETriggerEvent::Completed, this, &AMTGPlayerController::Input_IncreaseSimSpeed);
+		EnhancedInputComponent->BindAction(DecreaseSimSpeedAction, ETriggerEvent::Completed, this, &AMTGPlayerController::Input_DecreaseSimSpeed);
 	}
 	else
 	{
@@ -129,9 +177,12 @@ void AMTGPlayerController::OnInputStarted()
 // Triggered every frame when the input is held down
 void AMTGPlayerController::OnSetDestinationTriggered()
 {
-	// We flag that the input is being pressed
-	FollowTime += GetWorld()->GetDeltaSeconds();
-	
+	const UWorld* World = GetWorld();
+	check(World);
+
+	// We track inputs in REAL TIME, not in dilated sim time
+	FollowTime += SimTimeSubsystem->GetRealTimeSeconds(World->GetDeltaSeconds());
+
 	// We look for the location in the world where the player has pressed the input
 	FHitResult Hit;
 	bool bHitSuccessful = false;
@@ -166,7 +217,18 @@ void AMTGPlayerController::OnSetDestinationReleased()
 	{
 		// We move there and spawn some particles
 		UAIBlueprintHelperLibrary::SimpleMoveToLocation(this, CachedDestination);
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, FXCursor, CachedDestination, FRotator::ZeroRotator, FVector(1.f, 1.f, 1.f), true, true, ENCPoolMethod::None, true);
+
+		// Spawn the Niagara cursor component
+		UNiagaraComponent* NewFXComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, FXCursor, CachedDestination, FRotator::ZeroRotator, FVector(1.f, 1.f, 1.f), true, true, ENCPoolMethod::None, true);
+		NewFXComponent->SetForceSolo(true);  // Force it into solo mode so we can tick it
+		NewFXComponent->SetPaused(true);  // DO NOT let this tick on its own
+
+		// Add the newly spawned Niagara component to the set we will manually tick
+		SpawnedFXComponents.Add(NewFXComponent);
+
+#if DEBUG_MTG_NIAGARA_SYSTEMS
+		UE_LOG(LogMassTimeGame, Log, TEXT("Created FXCursor Niagara System Component [%s]"), *NewFXComponent->GetName());
+#endif
 	}
 
 	FollowTime = 0.f;
@@ -185,55 +247,19 @@ void AMTGPlayerController::OnTouchReleased()
 	OnSetDestinationReleased();
 }
 
-void AMTGPlayerController::TogglePlayPause()
+void AMTGPlayerController::Input_TogglePlayPause()
 {
-	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
-	{
-		if (MassSimulationSubsystem->IsSimulationPaused())
-		{
-			UE_LOG(LogMassTimeGame, Log, TEXT("Resuming Simulation"));
-			MassSimulationSubsystem->ResumeSimulation();
-		}
-		else
-		{
-			UE_LOG(LogMassTimeGame, Log, TEXT("Pausing Simulation"));
-			MassSimulationSubsystem->PauseSimulation();
-		}
-	}
+	SimTimeSubsystem->TogglePlayPause();
 }
 
-void AMTGPlayerController::IncreaseSimSpeed()
+void AMTGPlayerController::Input_IncreaseSimSpeed()
 {
-	if (false == CanIncreaseSimSpeed())
-	{
-		// Cannot increase farther
-		return;
-	}
-
-	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
-	{
-		SimSpeedIndex++;
-		const float NewTimeDilationFactor = SimSpeedOptions[SimSpeedIndex];
-
-		//UE_LOG(LogMassTimeGame, Log, TEXT("Increasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
-		// TODO
-	}
+	SimTimeSubsystem->IncreaseSimSpeed();
 }
 
-void AMTGPlayerController::DecreaseSimSpeed()
+void AMTGPlayerController::Input_DecreaseSimSpeed()
 {
-	if (false == CanDecreaseSimSpeed())
-	{
-		// Cannot decrease farther
-		return;
-	}
-
-	if (UMassSimulationSubsystem* MassSimulationSubsystem = UWorld::GetSubsystem<UMassSimulationSubsystem>(GetWorld()))
-	{
-		SimSpeedIndex--;
-		const float NewTimeDilationFactor = SimSpeedOptions[SimSpeedIndex];
-
-		//UE_LOG(LogMassTimeGame, Log, TEXT("Decreasing Simulation Speed to %d/%d (%0.3fx)"), 1+SimSpeedIndex, SimSpeedOptions.Num(), NewTimeDilationFactor);
-		// TODO
-	}
+	SimTimeSubsystem->DecreaseSimSpeed();
 }
+
+#undef DEBUG_MTG_NIAGARA_SYSTEMS
