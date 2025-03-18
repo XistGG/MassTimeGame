@@ -100,6 +100,11 @@ public:
 
 	/**
 	 * Get the current sim time dilation factor
+	 *
+	 * THIS WILL NEVER BE ZERO. A minimum of UE_SMALL_NUMBER is enforced at all times.
+	 * A larger minimum may be enforced by WorldSettings, but it will NEVER EVER
+	 * be less than UE_SMALL_NUMBER.
+	 * 
 	 * @return Current simulation time dilation factor
 	 */
 	float GetSimTimeDilation() const { return SimTimeDilation; }
