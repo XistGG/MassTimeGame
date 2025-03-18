@@ -10,7 +10,9 @@ class UMTGSimTimeSubsystem;
 class UTextBlock;
 
 UCLASS()
-class MASSTIMEGAME_API UMTGSimControlWidget : public UUserWidget
+class MASSTIMEGAME_API UMTGSimControlWidget
+	: public UUserWidget
+	, public FTickableGameObject
 {
 	GENERATED_BODY()
 
@@ -29,9 +31,6 @@ protected:
 
 	void NativeOnSimulationPauseStateChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystem);
 	void NativeOnSimulationTimeDilationChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystem);
-
-	UFUNCTION()
-	void NativeOnUpdateTimer();
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category=MassTimeGame)
 	TObjectPtr<UMTGSimTimeSubsystem> SimTimeSubsystem;
@@ -70,6 +69,13 @@ protected:
 	void NativeOnSpeedUpButtonClicked();
 
 private:
-	FTimerHandle TimerHandle;
+	float TimeSinceLastUpdate = MAX_flt / 2.;  // A huge number
 
+public:
+	//~Begin FTickableGameObject interface
+	virtual UWorld* GetTickableGameObjectWorld() const override;
+	virtual ETickableTickType GetTickableTickType() const override;
+	virtual void Tick(float DeltaTime) override;
+	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UMTGSimControlWidget, STATGROUP_Tickables); }
+	//~End FTickableGameObject interface
 };

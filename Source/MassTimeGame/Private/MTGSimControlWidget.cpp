@@ -58,9 +58,6 @@ void UMTGSimControlWidget::NativeConstruct()
 			SimTimeSubsystem->GetOnSimulationResumed().AddUObject(this, &ThisClass::NativeOnSimulationPauseStateChanged);
 			SimTimeSubsystem->GetOnTimeDilationChanged().AddUObject(this, &UMTGSimControlWidget::NativeOnSimulationTimeDilationChanged);
 		}
-
-		constexpr bool bLoopTimer = true;
-		World->GetTimerManager().SetTimer(OUT TimerHandle, this, &ThisClass::NativeOnUpdateTimer, WidgetUpdateInterval, bLoopTimer);
 	}
 
 	UpdateWidgetPauseState(bIsPaused);
@@ -94,11 +91,6 @@ void UMTGSimControlWidget::NativeDestruct()
 			SimTimeSubsystem->GetOnTimeDilationChanged().RemoveAll(this);
 			SimTimeSubsystem = nullptr;
 		}
-
-		const UWorld* World = GetWorld();
-		check(World);
-
-		World->GetTimerManager().ClearTimer(TimerHandle);
 	}
 
 	Super::NativeDestruct();
@@ -151,7 +143,7 @@ void UMTGSimControlWidget::UpdateWidgetTimerState()
 	double SimTime {0.};
 	float SimDeltaTime {0.};
 
-	if (SimTimeSubsystem)
+	if (LIKELY(SimTimeSubsystem))
 	{
 		SimTickNumber = SimTimeSubsystem->GetSimTickNumber();
 		SimTime = SimTimeSubsystem->GetSimTimeElapsed();
@@ -200,11 +192,6 @@ void UMTGSimControlWidget::NativeOnSimulationTimeDilationChanged(TNotNull<UMTGSi
 	UpdateWidgetTimeDilationState(TimeDilation);
 }
 
-void UMTGSimControlWidget::NativeOnUpdateTimer()
-{
-	UpdateWidgetTimerState();
-}
-
 void UMTGSimControlWidget::NativeOnPauseButtonClicked()
 {
 	if (SimTimeSubsystem)
@@ -226,6 +213,36 @@ void UMTGSimControlWidget::NativeOnSpeedUpButtonClicked()
 	if (SimTimeSubsystem)
 	{
 		SimTimeSubsystem->IncreaseSimSpeed();
+	}
+}
+
+UWorld* UMTGSimControlWidget::GetTickableGameObjectWorld() const
+{
+	return GetWorld();
+}
+
+ETickableTickType UMTGSimControlWidget::GetTickableTickType() const
+{
+	return ETickableTickType::Always;
+}
+
+void UMTGSimControlWidget::Tick(float DeltaTime)
+{
+	if (LIKELY(SimTimeSubsystem))
+	{
+		// When we're dilating the global time, that means World Timers are also dilated,
+		// which means at really slow time dilation this widget will almost never update!
+		// This means we need to tick every frame, and keep track of the ACTUAL REAL TIME
+		// that has elapsed since our last update, and update when needed.
+
+		const float RealDeltaTime = SimTimeSubsystem->GetRealTimeSeconds(DeltaTime);
+		TimeSinceLastUpdate += RealDeltaTime;
+
+		if (TimeSinceLastUpdate >= WidgetUpdateInterval)
+		{
+			TimeSinceLastUpdate = 0.;
+			UpdateWidgetTimerState();
+		}
 	}
 }
 
