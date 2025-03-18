@@ -62,7 +62,7 @@ void UMTGSimControlWidget::NativeConstruct()
 
 	UpdateWidgetPauseState(bIsPaused);
 	UpdateWidgetTimeDilationState(TimeDilation);
-	UpdateWidgetTimerState();
+	UpdateWidgetTimeState();
 }
 
 void UMTGSimControlWidget::NativeDestruct()
@@ -137,7 +137,7 @@ void UMTGSimControlWidget::UpdateWidgetTimeDilationState(float TimeDilationFacto
 	}
 }
 
-void UMTGSimControlWidget::UpdateWidgetTimerState()
+void UMTGSimControlWidget::UpdateWidgetTimeState()
 {
 	uint64 SimTickNumber {0};
 	double SimTime {0.};
@@ -182,7 +182,7 @@ void UMTGSimControlWidget::NativeOnSimulationPauseStateChanged(TNotNull<UMTGSimT
 	checkf(SimTimeSubsystem == SimTimeSubsystemIn, TEXT("We should never receive this event except from our expected SimTimeSubsystem"));
 	const bool bIsPaused = SimTimeSubsystem->IsPaused();
 	UpdateWidgetPauseState(bIsPaused);
-	UpdateWidgetTimerState();
+	UpdateWidgetTimeState();
 }
 
 void UMTGSimControlWidget::NativeOnSimulationTimeDilationChanged(TNotNull<UMTGSimTimeSubsystem*> SimTimeSubsystemIn)
@@ -241,7 +241,7 @@ void UMTGSimControlWidget::Tick(float DeltaTime)
 		if (TimeSinceLastUpdate >= WidgetUpdateInterval)
 		{
 			TimeSinceLastUpdate = 0.;
-			UpdateWidgetTimerState();
+			UpdateWidgetTimeState();
 		}
 	}
 }

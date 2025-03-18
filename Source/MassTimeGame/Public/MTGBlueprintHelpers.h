@@ -5,8 +5,11 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "MTGBlueprintHelpers.generated.h"
 
-class UMTGSimTimeSubsystem;
-
+/**
+ * MTG Blueprint Helpers
+ *
+ * Thread-safe Animation Blueprint Helper library.
+ */
 UCLASS(meta=(BlueprintThreadSafe, DisplayName="MTG Blueprint Helpers"))
 class MASSTIMEGAME_API UMTGBlueprintHelpers : public UBlueprintFunctionLibrary
 {
