@@ -9,7 +9,7 @@
 UMTGSimTimeSubsystem::UMTGSimTimeSubsystem()
 {
 	// Override in Config if you want different options
-	SimSpeedOptions = {.125f, .25f, .5f, .75f, 1.f, 1.25f, 1.5f, 2.f, 4.f, 8.f};
+	SimSpeedOptions = {.125f, .25f, .5f, .75f, 1.f, 2.f, 3.f, 4.f, 8.f};
 }
 
 void UMTGSimTimeSubsystem::PostInitProperties()
@@ -24,9 +24,12 @@ void UMTGSimTimeSubsystem::PostInitProperties()
 		const AWorldSettings* WorldSettings = World->GetWorldSettings();
 		if (ensure(WorldSettings))
 		{
+			// Make sure this is NEVER ZERO
+			const float MinAllowedValue = FMath::Max(UE_SMALL_NUMBER, WorldSettings->MinGlobalTimeDilation);
+
 			// Unshift disallowed values, if any
 			while (SimSpeedOptions.Num() > 0
-				&& !FMath::IsWithin(SimSpeedOptions[0], WorldSettings->MinGlobalTimeDilation, WorldSettings->MaxGlobalTimeDilation))
+				&& !FMath::IsWithin(SimSpeedOptions[0], MinAllowedValue, WorldSettings->MaxGlobalTimeDilation))
 			{
 				UE_LOG(LogMassTimeGame, Warning, TEXT("SimSpeedOptions value %.6f is not in the valid range (%.6f .. %.6f), pruning it"), SimSpeedOptions[0], WorldSettings->MinGlobalTimeDilation, WorldSettings->MaxGlobalTimeDilation);
 				SimSpeedOptions.RemoveAt(0);
@@ -34,7 +37,7 @@ void UMTGSimTimeSubsystem::PostInitProperties()
 
 			// Pop disallowed values, if any
 			while (SimSpeedOptions.Num() > 0
-				&& !FMath::IsWithin(SimSpeedOptions[SimSpeedOptions.Num()-1], WorldSettings->MinGlobalTimeDilation, WorldSettings->MaxGlobalTimeDilation))
+				&& !FMath::IsWithin(SimSpeedOptions[SimSpeedOptions.Num()-1], MinAllowedValue, WorldSettings->MaxGlobalTimeDilation))
 			{
 				UE_LOG(LogMassTimeGame, Warning, TEXT("SimSpeedOptions value %.6f is not in the valid range (%.6f .. %.6f), pruning it"), SimSpeedOptions[SimSpeedOptions.Num()-1], WorldSettings->MinGlobalTimeDilation, WorldSettings->MaxGlobalTimeDilation);
 				SimSpeedOptions.RemoveAt(SimSpeedOptions.Num()-1);
@@ -45,6 +48,8 @@ void UMTGSimTimeSubsystem::PostInitProperties()
 	// If we don't have at least 1 option, force one into existence
 	if (!ensure(SimSpeedOptions.Num() > 0))
 	{
+		// DO NOT allow zero (or negative) SimTimeDilation
+		checkf(SimTimeDilation > 0., TEXT("SimTimeDilation can never be <= 0"));
 		SimSpeedOptions.Add(SimTimeDilation);
 		SimSpeedIndex = 0;
 		UE_LOG(LogMassTimeGame, Warning, TEXT("No valid SimSpeedOptions defined; added one: %.6f"), SimTimeDilation);
@@ -97,6 +102,7 @@ void UMTGSimTimeSubsystem::Deinitialize()
 
 void UMTGSimTimeSubsystem::Tick(float DeltaTime)
 {
+	// DeltaTime is sim-dilated
 	Super::Tick(DeltaTime);
 
 	// TODO find out when we're ticking relative to other objects
@@ -113,7 +119,7 @@ void UMTGSimTimeSubsystem::Tick(float DeltaTime)
 	}
 	else
 	{
-		// While running, keep track of time
+		// While running, keep track of time (DeltaTime is sim-dilated)
 		SimDeltaTime = DeltaTime;
 		SimTimeElapsed += DeltaTime;
 		++SimTickNumber;

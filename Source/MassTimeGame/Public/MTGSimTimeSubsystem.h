@@ -7,7 +7,7 @@
 
 class UMassSimulationSubsystem;
 
-UCLASS(Config=MTG)
+UCLASS(Config=MTG, meta=(DisplayName="MTG Sim Time Subsystem"))
 class MASSTIMEGAME_API UMTGSimTimeSubsystem  : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
@@ -36,6 +36,9 @@ public:
 	FOnPauseStateChanged& GetOnSimulationPaused() { return OnSimulationPaused; }
 	FOnPauseStateChanged& GetOnSimulationResumed() { return OnSimulationResumed; }
 	FOnTimeDilationChanged& GetOnTimeDilationChanged() { return OnTimeDilationChanged; }
+
+	float GetRealTimeSeconds(const float TimeSeconds) const { return TimeSeconds / GetSimTimeDilation(); }
+	float GetRealTimeDilation() const { return 1. / GetSimTimeDilation(); }
 
 	bool IsPaused() const { return bIsSimPaused; }
 
