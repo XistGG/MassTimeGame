@@ -105,12 +105,10 @@ void UMTGSimTimeSubsystem::Tick(float DeltaTime)
 	// DeltaTime is sim-dilated
 	Super::Tick(DeltaTime);
 
-	// TODO find out when we're ticking relative to other objects
-
 	// Notice: When the simulation is running, it's going to be incurring
 	// A LOT more CPU than when it's paused. Thus, we'll use UNLIKELY here
 	// to optimize for that state. Yes, this burns a little CPU when the
-	// simulation is not paused, but it still seems worthwhile.
+	// simulation is paused, but it still seems worthwhile.
 
 	if (UNLIKELY(IsPaused()))
 	{
