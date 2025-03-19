@@ -23,4 +23,13 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category="MassTimeGame", meta=(WorldContext="WorldContextObject"))
 	static bool IsSimulationPaused(const UObject* WorldContextObject);
+
+	/**
+	 * Get the current Simulation Time Dilation factor.
+	 * @param WorldContextObject Any world object so we can get the MTG Sim Time Subsystem
+	 * @return Current Sim Time Dilation factor (1 = real time, <1 = slow time, >1 = fast time)
+	 */
+	UFUNCTION(BlueprintPure, Category="MassTimeGame", meta=(WorldContext="WorldContextObject"))
+	static float GetSimTimeDilation(const UObject* WorldContextObject);
+	
 };
