@@ -3,6 +3,8 @@
 The purpose of this project is to test time dilation, pausing and resuming
 of a UE Mass simulation.
 
+[YouTube video demonstration and code discussion](https://youtu.be/lUWjiRx5LkM) (1.5 minute demo, 18.5 minute discussion)
+
 For this project to compile and run, you need to be using UE 5.6+
 *(or if 5.6 is not yet released, use `ue5-main`)*.
 
