@@ -217,6 +217,22 @@ bool UMTGSimTimeSubsystem::DecreaseSimSpeed()
 
 bool UMTGSimTimeSubsystem::TogglePlayPause()
 {
+	if (IsPaused())
+	{
+		return ResumeSimulation();
+	}
+
+	return PauseSimulation();
+}
+
+bool UMTGSimTimeSubsystem::PauseSimulation()
+{
+	if (IsPaused())
+	{
+		// We're already paused, we don't need to do anything.
+		return true;
+	}
+
 	const UWorld* World = GetWorld();
 	check(World);
 
@@ -227,22 +243,39 @@ bool UMTGSimTimeSubsystem::TogglePlayPause()
 		return false;
 	}
 
-	if (IsPaused())
+	// We need UMassSimulationSubsystem to actually pause the simulation.
+	// Also, this WILL NOT take effect immediately, so we DO NOT immediately mark the sim as resumed.
+	// We'll wait for its callback to do that.
+	UE_LOG(LogMassTimeGame, Verbose, TEXT("Pause Simulation"));
+	MassSimulationSubsystem->PauseSimulation();
+
+	// We requested the pause state to change, now we just need to wait for it to actually change.
+	return true;
+}
+
+bool UMTGSimTimeSubsystem::ResumeSimulation()
+{
+	if (false == IsPaused())
 	{
-		// We need UMassSimulationSubsystem to actually pause the simulation.
-		// Also, this WILL NOT take effect immediately, so we DO NOT immediately mark the sim as paused.
-		// We'll wait for its callback to do that.
-		UE_LOG(LogMassTimeGame, Verbose, TEXT("Resume Simulation"));
-		MassSimulationSubsystem->ResumeSimulation();
+		// We're already resumed/playing, we don't need to do anything.
+		return true;
 	}
-	else
+
+	const UWorld* World = GetWorld();
+	check(World);
+
+	UMassSimulationSubsystem* MassSimulationSubsystem = World->GetSubsystem<UMassSimulationSubsystem>();
+
+	if (nullptr == MassSimulationSubsystem)
 	{
-		// We need UMassSimulationSubsystem to actually resume the simulation.
-		// Also, this WILL NOT take effect immediately, so we DO NOT immediately mark the sim as resumed.
-		// We'll wait for its callback to do that.
-		UE_LOG(LogMassTimeGame, Verbose, TEXT("Pause Simulation"));
-		MassSimulationSubsystem->PauseSimulation();
+		return false;
 	}
+
+	// We need UMassSimulationSubsystem to actually resume the simulation.
+	// Also, this WILL NOT take effect immediately, so we DO NOT immediately mark the sim as paused.
+	// We'll wait for its callback to do that.
+	UE_LOG(LogMassTimeGame, Verbose, TEXT("Resume Simulation"));
+	MassSimulationSubsystem->ResumeSimulation();
 
 	// We requested the pause state to change, now we just need to wait for it to actually change.
 	return true;

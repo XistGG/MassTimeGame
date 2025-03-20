@@ -145,6 +145,18 @@ public:
 	 */
 	bool TogglePlayPause();
 
+	/**
+	 * Put the simulation into the Paused state.
+	 * @return True if we attempted to pause the simulation, else False
+	 */
+	bool PauseSimulation();
+
+	/**
+	 * Put the simulation into the Resumed/Play state.
+	 * @return True if we attempted to resume the simulation, else False
+	 */
+	bool ResumeSimulation();
+
 protected:
 	/**
 	 * An ordered array of all the possible sim speed settings.
