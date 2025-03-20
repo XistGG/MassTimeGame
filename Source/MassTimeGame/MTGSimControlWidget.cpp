@@ -56,7 +56,7 @@ void UMTGSimControlWidget::NativeConstruct()
 
 			SimTimeSubsystem->GetOnSimulationPaused().AddUObject(this, &ThisClass::NativeOnSimulationPauseStateChanged);
 			SimTimeSubsystem->GetOnSimulationResumed().AddUObject(this, &ThisClass::NativeOnSimulationPauseStateChanged);
-			SimTimeSubsystem->GetOnTimeDilationChanged().AddUObject(this, &UMTGSimControlWidget::NativeOnSimulationTimeDilationChanged);
+			SimTimeSubsystem->GetOnTimeDilationChanged().AddUObject(this, &ThisClass::NativeOnSimulationTimeDilationChanged);
 		}
 	}
 
